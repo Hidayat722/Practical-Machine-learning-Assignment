@@ -1,0 +1,86 @@
+
+
+### Practical Machine Learning Assignment
+
+This assignment is about predictive modeling of excercise. A model has been created using 10 Fold cross validation to perform the prediction on test dataset. To perform the prediction we have undergone to several process each of the process is discussed in details below.
+
+## Information Retrieval and Pre-processing.
+The training dataset we have used can be obtained from the URL
+(http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv) 
+while the testing dataset can be obtained from the link. (http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv).
+In our analysis, Firstly we have downloaded the dataset from the URLS given above and then we have performed the rest of the operations.
+Since the dataset is given in CSV format so it can be loaded into R using csv.read function. 
+
+train_samples <- read.csv("pml-training.csv", na.strings=c("#DIV/0!") )
+test_samples <- read.csv("pml-testing.csv", na.strings=c("#DIV/0!") )
+
+Here in the code we have used na.strings which replaces the values #DIV/0! with NA.
+
+
+
+## Pre-processing and Feature Selection.
+
+We have noticed that there are some colunms which doesn't help in the classification process such as serial Number, time stamp, user name etc. so its better to remove these information form the dataset. further we have converted the character data to numeric format since its better to represent number in numeric format. Beside these we have noticed that there are some columns which rarely contains data and hence its better to remove those columns. from the features set we only select those features which helps in the classification process or in other words features which do not contain NA or null values.
+The following code shows what we have discussed so far in the pre-processing step.
+
+for(i in c(8:ncol(train_samples)-1)) {train_samples[,i] = as.numeric(as.character(train_samples[,i]))}
+
+for(i in c(8:ncol(test_samples)-1)) {test_samples[,i] = as.numeric(as.character(test_samples[,i]))}
+selected_features <- colnames(train_samples[colSums(is.na(train_samples)) == 0])[-(1:7)]
+model_train_feats<- train_samples[selected_features]
+model_train_feats
+
+After applying the pre-processing and removing the redundant features now we have total of 53 features including the class and total of 19622 samples.
+
+# Training and Testing
+
+Now we have performed the pre-processing and the dataset is now available for creating the test and train dataset. As already discussed we have performed 10 Fold cross validation in which we have used 75 percent of the data for training and 25 percent for testing. To expediate the process we have applied parrallel computing. For classification purpose we have created a random forest from 10 trees the performance obtianed were near human level i.e .99 percent accuracy and kappa score were observed. 
+
+dataset <- createDataPartition(y=model_train_feats$classe, p=0.75, list=FALSE )
+train_data <- model_train_feats[dataset,]
+test_data <- model_train_feats[-dataset,]
+registerDoParallel()
+x <- train_data[-ncol(train_data)]
+y <- train_data$classe
+
+classifier <- foreach(ntree=rep(20, 5), .combine=randomForest::combine, .packages='randomForest') %dopar% {
+randomForest(x, y, ntree=ntree) }
+Outcomes <- predict(classifier, newdata=test_data)
+confusionMatrix(Outcomes,test_data$classe)
+
+
+## Conclusion.
+
+better way to analyze the result is the use of confusion matrix. from confusio matrix. The confusion matix obtianed is shown below
+
+Prediction    A    B    C    D    E
+         A 1394    2    0    0    0
+         B    1  946    3    0    0
+         C    0    1  849    9    0
+         D    0    0    3  794    1
+         E    0    0    0    1  900
+
+Overall Statistics
+                                          
+               Accuracy : 0.9957          
+                 95% CI : (0.9935, 0.9973)
+    No Information Rate : 0.2845          
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.9946          
+ Mcnemar's Test P-Value : NA              
+
+Statistics by Class:
+
+                     Class: A Class: B Class: C Class: D Class: E
+Sensitivity            0.9993   0.9968   0.9930   0.9876   0.9989
+Specificity            0.9994   0.9990   0.9975   0.9990   0.9998
+Pos Pred Value         0.9986   0.9958   0.9884   0.9950   0.9989
+Neg Pred Value         0.9997   0.9992   0.9985   0.9976   0.9998
+Prevalence             0.2845   0.1935   0.1743   0.1639   0.1837
+Detection Rate         0.2843   0.1929   0.1731   0.1619   0.1835
+Detection Prevalence   0.2847   0.1937   0.1752   0.1627   0.1837
+Balanced Accuracy      0.9994   0.9979   0.9953   0.9933   0.9993
+
+
+Based on the confusion matrix its clear that Random forest with fewer number of trees has achieved maximum performance and hence the overall accuracy of each class is almost the same i.e .99 further evaluation using Kappa statistics has also shown the same results.
